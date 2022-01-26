@@ -2,11 +2,22 @@ import pygame
 
 
 class Player(pygame.sprite.Sprite):
-    image = pygame.image.load("sprites/player_idle.png")
+    image = pygame.image.load("sprites/player_idle_right.png")
+
+    idle_right = pygame.image.load("sprites/player_idle_right.png")
+    idle_left = pygame.image.load("sprites/player_idle_left.png")
+
+    run_right = [pygame.image.load('sprites/player_run_rightshoot1.png'),
+                 pygame.image.load('sprites/player_run_rightshoot2.png'),
+                 pygame.image.load('sprites/player_run_rightshoot3.png'),]
+
+    run_left = [pygame.image.load('sprites/player_run_leftshoot1.png'),
+                 pygame.image.load('sprites/player_run_leftshoot2.png'),
+                 pygame.image.load('sprites/player_run_leftshoot3.png'), ]
 
     def __init__(self, x, y):
         super().__init__(all_sprites)
-        self.player_idle = Player.image
+        self.sprite = Player.image
         self.rect = self.image.get_rect()
         # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
@@ -19,9 +30,27 @@ class Player(pygame.sprite.Sprite):
         else:
             return 'collide'
 
+    def animation(self, command):
+        global ANIM_COUNT
+        if ANIM_COUNT + 1 >= 15:
+            ANIM_COUNT = 0
+
+        if command == 'left':
+            player.image = player.run_left[ANIM_COUNT // 5]
+            # player.sprite = Player.run_left[ANIM_COUNT // 5]
+            ANIM_COUNT += 1
+        elif command == 'right':
+            player.image = player.run_right[ANIM_COUNT // 5]
+            ANIM_COUNT += 1
+        elif command == 'idle_left':
+            player.image = player.idle_left
+        elif command == 'idle_right':
+            player.image = player.idle_right
+
 
 class Level(pygame.sprite.Sprite):
-    image = pygame.image.load('levels/lvl1.png')
+    image = pygame.image.load('level_decor/ground.png')
+    bg = pygame.image.load('level_decor/bg.png')
 
     def __init__(self):
         super().__init__(all_sprites)
@@ -31,6 +60,10 @@ class Level(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         # располагаем горы внизу
         self.rect.bottom = height
+        self.bg_x = 0
+
+    def load_bg(self):
+        screen.blit(Level.bg, (self.bg_x, 0))
 
 
 class Camera:
@@ -61,24 +94,32 @@ class CameraTarget(pygame.sprite.Sprite):
         self.rect.y = y
 
     def update(self, target):
-        if target.rect.x >= self.rect.x <= self.rect.x + 10:
+        if target.rect.x >= self.rect.x <= self.rect.x + 10 <= 3200:
             self.rect.x += 5
+            level.bg_x -= 1
 
 
 if __name__ == '__main__':
     def main_movement():
-        global JUMP_COUNT
+        global JUMP_COUNT, ANIM_COUNT, command
         if keys[pygame.K_LEFT]:
             player.rect.x -= SPEED
-        if keys[pygame.K_RIGHT]:
+            command = 'left'
+        elif keys[pygame.K_RIGHT]:
             player.rect.x += SPEED
+            command = 'right'
+        else:
+            if command == 'right':
+                command = 'idle_right'
+            elif command == 'left':
+                command = 'idle_left'
         if keys[pygame.K_UP]:
             if not JUMP_COUNT >= 250:
                 player.rect.y -= JUMP_HIGH
                 JUMP_COUNT += JUMP_HIGH
             else:
                 return
-
+        player.animation(command)
 
     all_sprites = pygame.sprite.Group()
     pygame.init()
@@ -92,7 +133,9 @@ if __name__ == '__main__':
 
     SPEED = 5
     JUMP_COUNT = 0
-    JUMP_HIGH = 15
+    JUMP_HIGH = 14
+    ANIM_COUNT = 0
+    command = ''
 
     camera = Camera()
 
@@ -101,7 +144,8 @@ if __name__ == '__main__':
     clock = pygame.time.Clock()
     player = Player(200, 0)
     while running:
-        screen.fill((16, 173, 197))
+        # screen.fill((16, 173, 197))
+        level.load_bg()
         clock.tick(60)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
