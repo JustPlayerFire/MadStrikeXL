@@ -1,4 +1,5 @@
 import pygame
+from random import randrange
 
 
 class Player(pygame.sprite.Sprite):
@@ -25,6 +26,16 @@ class Player(pygame.sprite.Sprite):
         self.rect.y = y
 
     def update(self):
+        global running
+        stand = False
+        for i in range(len(obstacles)):
+            if pygame.sprite.collide_mask(self, obstacles[i]):
+                stand = True
+                break
+        if stand:
+            return 'collide'
+        if pygame.sprite.collide_mask(self, jet):
+            running = False
         if not pygame.sprite.collide_mask(self, level):
             self.rect = self.rect.move(0, 5)
         else:
@@ -37,7 +48,6 @@ class Player(pygame.sprite.Sprite):
 
         if command == 'left':
             player.image = player.run_left[ANIM_COUNT // 5]
-            # player.sprite = Player.run_left[ANIM_COUNT // 5]
             ANIM_COUNT += 1
         elif command == 'right':
             player.image = player.run_right[ANIM_COUNT // 5]
@@ -46,6 +56,20 @@ class Player(pygame.sprite.Sprite):
             player.image = player.idle_left
         elif command == 'idle_right':
             player.image = player.idle_right
+
+
+class Obstacle(pygame.sprite.Sprite):
+    image = pygame.image.load('level_decor/fly_ground.png')
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = Obstacle.image
+        self.rect = self.image.get_rect()
+        # вычисляем маску для эффективного сравнения
+        self.mask = pygame.mask.from_surface(self.image)
+        # располагаем горы внизу
+        self.rect.x = x
+        self.rect.y = y
 
 
 class Level(pygame.sprite.Sprite):
@@ -99,6 +123,20 @@ class CameraTarget(pygame.sprite.Sprite):
             level.bg_x -= 1
 
 
+class EndLVL(pygame.sprite.Sprite):
+    image = pygame.image.load('level_decor/jet.png')
+
+    def __init__(self):
+        super().__init__(all_sprites)
+        self.image = EndLVL.image
+        self.rect = self.image.get_rect()
+        # вычисляем маску для эффективного сравнения
+        self.mask = pygame.mask.from_surface(self.image)
+        # располагаем горы внизу
+        self.rect.bottom = height
+        self.rect.x = 4100
+
+
 if __name__ == '__main__':
     def main_movement():
         global JUMP_COUNT, ANIM_COUNT, command
@@ -139,12 +177,25 @@ if __name__ == '__main__':
 
     camera = Camera()
 
+    obstacles = [Obstacle(700, 200),
+                 Obstacle(830, 150),
+                 Obstacle(1000, 100),
+                 Obstacle(1200, 100),
+                 Obstacle(1400, 100),
+                 Obstacle(1800, 250),
+                 Obstacle(2000, 200),
+                 Obstacle(2200, 150),
+                 Obstacle(2400, 100),
+                 Obstacle(3000, 200),
+                 Obstacle(3200, 150)]
+
+    jet = EndLVL()
+
     camera_target = CameraTarget(400, 190)
 
     clock = pygame.time.Clock()
     player = Player(200, 0)
     while running:
-        # screen.fill((16, 173, 197))
         level.load_bg()
         clock.tick(60)
         for event in pygame.event.get():
