@@ -1,5 +1,7 @@
 import pygame
-from random import randrange
+import sys
+import random
+from math import hypot
 
 
 class Player(pygame.sprite.Sprite):
@@ -20,14 +22,20 @@ class Player(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.sprite = Player.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
+        self.side = 'right'
+        self.reload = 0
+        self.health = 120
         self.rect.x = x
         self.rect.y = y
 
     def update(self):
         global running
         stand = False
+        if self.health <= 0:
+            self.kill()
+            self.rect.x = -10
+            self.rect.y = -10
         for i in range(len(obstacles)):
             if pygame.sprite.collide_mask(self, obstacles[i]):
                 stand = True
@@ -48,20 +56,114 @@ class Player(pygame.sprite.Sprite):
 
         if command == 'left':
             player.image = player.run_left[ANIM_COUNT // 5]
+            self.side = 'left'
             ANIM_COUNT += 1
         elif command == 'right':
             player.image = player.run_right[ANIM_COUNT // 5]
+            self.side = 'right'
             ANIM_COUNT += 1
         elif command == 'idle_left':
             player.image = player.idle_left
+            self.side = 'left'
         elif command == 'idle_right':
             player.image = player.idle_right
+            self.side = 'right'
+
+
+class BulletEnemy(pygame.sprite.Sprite):
+    image = pygame.image.load('sprites/bullet_enemy.png')
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = BulletEnemy.image
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.speed = 10
+        self.rect.x = x
+        self.rect.y = y + 20
+        self.reload = 0
+        self.dir = (player.rect.x - self.rect.x, player.rect.y - self.rect.y)
+        length = hypot(*self.dir)
+        if length == 0.0:
+            self.dir = (0, -1)
+        else:
+            self.dir = (self.dir[0] / length, self.dir[1] / length)
+
+    def update(self):
+        if self.rect.x >= 800 or self.rect.x <= 0:
+            self.kill()
+            return
+
+        if pygame.sprite.collide_mask(self, player):
+            player.health -= 1
+            self.kill()
+            return
+
+        self.rect.x = self.rect.x + self.dir[0] * self.speed
+        self.rect.y = (self.rect.y + self.dir[1] * self.speed) + 1
+
+
+class BulletPlayer(pygame.sprite.Sprite):
+    image = pygame.image.load('sprites/bullet.png')
+
+    def __init__(self, x, y,  side):
+        super().__init__(all_sprites)
+        self.image = BulletPlayer.image
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.side = side
+        self.speed = 20
+        self.rect.x = x + 25
+        self.rect.y = y + 20
+
+    def update(self):
+        if self.side == 'left':
+            self.rect.x -= self.speed
+        elif self.side == 'right':
+            self.rect.x += self.speed
+        if self.rect.x >= 800 or self.rect.x <= 0:
+            self.kill()
+            return
+        for i in range(len(obstacles)):
+            try:
+                if pygame.sprite.collide_mask(self, obstacles[i].tesla):
+                    obstacles[i].tesla.health -= 1
+                    obstacles[i].tesla.update()
+                    self.update()
+                    self.kill()
+            except AttributeError:
+                pass
+            if pygame.sprite.collide_mask(self, obstacles[i]):
+                self.kill()
+
+
+class Tesla(pygame.sprite.Sprite):
+    image = pygame.image.load('sprites/tesla_idle1.png')
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = Tesla.image
+        self.rect = self.image.get_rect()
+        # вычисляем маску для эффективного сравнения
+        self.mask = pygame.mask.from_surface(self.image)
+        # располагаем горы внизу
+        self.reload = 0
+        self.health = 20
+        self.rect.x = x + random.randrange(20, 50)
+        self.rect.y = y - 70
+
+    def update(self):
+        if self.health <= 0:
+            self.mask.clear()
+            self.kill()
+            self.rect.x = -10
+            self.rect.y = -10
 
 
 class Obstacle(pygame.sprite.Sprite):
     image = pygame.image.load('level_decor/fly_ground.png')
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, spawn_tesla=False):
         super().__init__(all_sprites)
         self.image = Obstacle.image
         self.rect = self.image.get_rect()
@@ -70,6 +172,8 @@ class Obstacle(pygame.sprite.Sprite):
         # располагаем горы внизу
         self.rect.x = x
         self.rect.y = y
+        if spawn_tesla:
+            self.tesla = Tesla(self.rect.x, self.rect.y)
 
 
 class Level(pygame.sprite.Sprite):
@@ -140,6 +244,10 @@ class EndLVL(pygame.sprite.Sprite):
 if __name__ == '__main__':
     def main_movement():
         global JUMP_COUNT, ANIM_COUNT, command
+        if keys[pygame.K_SPACE]:
+            if player.reload <= 0:
+                player_bullets.append(BulletPlayer(player.rect.x, player.rect.y, player.side))
+                player.reload = 15
         if keys[pygame.K_LEFT]:
             player.rect.x -= SPEED
             command = 'left'
@@ -177,17 +285,21 @@ if __name__ == '__main__':
 
     camera = Camera()
 
-    obstacles = [Obstacle(700, 200),
+    obstacles = [Obstacle(700, 200, True),
                  Obstacle(830, 150),
-                 Obstacle(1000, 100),
+                 Obstacle(1000, 100, True),
                  Obstacle(1200, 100),
-                 Obstacle(1400, 100),
-                 Obstacle(1800, 250),
+                 Obstacle(1400, 100, True),
+                 Obstacle(1800, 250, True),
                  Obstacle(2000, 200),
-                 Obstacle(2200, 150),
-                 Obstacle(2400, 100),
+                 Obstacle(2200, 150, True),
+                 Obstacle(2400, 100, True),
                  Obstacle(3000, 200),
-                 Obstacle(3200, 150)]
+                 Obstacle(3200, 150, True)]
+
+    player_bullets = []
+
+    enemy_bullets = []
 
     jet = EndLVL()
 
@@ -206,6 +318,26 @@ if __name__ == '__main__':
         main_movement()
 
         result = player.update()
+
+        for bullet in player_bullets:
+            bullet.update()
+
+        for i in range(len(obstacles)):
+            try:
+                if obstacles[i].tesla.reload > 0:
+                    obstacles[i].tesla.reload -= 1
+                if obstacles[i].tesla.reload <= 0:
+                    enemy_bullets.append(BulletEnemy(obstacles[i].tesla.rect.x, obstacles[i].tesla.rect.y))
+                    obstacles[i].tesla.reload = 80
+            except AttributeError:
+                continue
+
+        for bullet in enemy_bullets:
+            bullet.update()
+
+        if player.reload > 0:
+            player.reload -= 1
+
         if result == 'collide':
             JUMP_COUNT = 0
 
