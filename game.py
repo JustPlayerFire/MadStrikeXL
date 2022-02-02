@@ -1,5 +1,4 @@
 import pygame
-import sys
 import random
 from math import hypot
 
@@ -25,9 +24,10 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.side = 'right'
         self.reload = 0
-        self.health = 120
+        self.health = 500
         self.rect.x = x
         self.rect.y = y
+        self.speed = 5
 
     def update(self):
         global running
@@ -35,7 +35,7 @@ class Player(pygame.sprite.Sprite):
         if self.health <= 0:
             self.kill()
             self.rect.x = -10
-            self.rect.y = -10
+            self.rect.y = -30
         for i in range(len(obstacles)):
             if pygame.sprite.collide_mask(self, obstacles[i]):
                 stand = True
@@ -44,6 +44,7 @@ class Player(pygame.sprite.Sprite):
             return 'collide'
         if pygame.sprite.collide_mask(self, jet):
             running = False
+            print('Level Complete!')
         if not pygame.sprite.collide_mask(self, level):
             self.rect = self.rect.move(0, 5)
         else:
@@ -72,10 +73,14 @@ class Player(pygame.sprite.Sprite):
 
 class BulletEnemy(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/bullet_enemy.png')
+    image2 = pygame.image.load('sprites/bullet_enemy_small.png')
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, bullet_size='big'):
         super().__init__(all_sprites)
-        self.image = BulletEnemy.image
+        if bullet_size == 'small':
+            self.image = BulletEnemy.image2
+        elif bullet_size == 'big':
+            self.image = BulletEnemy.image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.speed = 10
@@ -156,8 +161,40 @@ class Tesla(pygame.sprite.Sprite):
         if self.health <= 0:
             self.mask.clear()
             self.kill()
-            self.rect.x = -10
-            self.rect.y = -10
+            self.rect.x = -30
+            self.rect.y = -30
+
+
+class Drone(pygame.sprite.Sprite):
+    image = pygame.image.load('sprites/drone.png')
+
+    def __init__(self, x, y):
+        super().__init__(all_sprites)
+        self.image = Drone.image
+        self.rect = self.image.get_rect()
+        # вычисляем маску для эффективного сравнения
+        self.mask = pygame.mask.from_surface(self.image)
+        # располагаем горы внизу
+        self.reload = 0
+        self.rect.x = x
+        self.rect.y = y
+        self.side = 'left'
+        self.count_move = 1500
+        self.speed = 5
+
+    def move(self):
+        if self.count_move <= 0:
+            if self.side == 'left':
+                self.side = 'right'
+                self.count_move = 1500
+            elif self.side == 'right':
+                self.side = 'left'
+                self.count_move = 1500
+        if self.side == 'left':
+            self.rect.x -= self.speed
+        elif self.side == 'right':
+            self.rect.x += self.speed
+        self.count_move -= 2
 
 
 class Obstacle(pygame.sprite.Sprite):
@@ -249,10 +286,10 @@ if __name__ == '__main__':
                 player_bullets.append(BulletPlayer(player.rect.x, player.rect.y, player.side))
                 player.reload = 15
         if keys[pygame.K_LEFT]:
-            player.rect.x -= SPEED
+            player.rect.x -= player.speed
             command = 'left'
         elif keys[pygame.K_RIGHT]:
-            player.rect.x += SPEED
+            player.rect.x += player.speed
             command = 'right'
         else:
             if command == 'right':
@@ -277,7 +314,7 @@ if __name__ == '__main__':
 
     level = Level()
 
-    SPEED = 5
+
     JUMP_COUNT = 0
     JUMP_HIGH = 14
     ANIM_COUNT = 0
@@ -296,6 +333,8 @@ if __name__ == '__main__':
                  Obstacle(2400, 100, True),
                  Obstacle(3000, 200),
                  Obstacle(3200, 150, True)]
+
+    drones = [Drone(3000, 20)]
 
     player_bullets = []
 
@@ -319,8 +358,25 @@ if __name__ == '__main__':
 
         result = player.update()
 
+        if player.reload > 0:
+            player.reload -= 1
+
+        if result == 'collide':
+            JUMP_COUNT = 0
+
         for bullet in player_bullets:
             bullet.update()
+
+        for bullet in enemy_bullets:
+            bullet.update()
+
+        for i in range(len(drones)):
+            drones[i].move()
+            if drones[i].reload <= 0:
+                enemy_bullets.append(BulletEnemy(drones[i].rect.x, drones[i].rect.y, 'small'))
+                drones[i].reload = 15
+            if drones[i].reload > 0:
+                drones[i].reload -= 1
 
         for i in range(len(obstacles)):
             try:
@@ -331,15 +387,6 @@ if __name__ == '__main__':
                     obstacles[i].tesla.reload = 80
             except AttributeError:
                 continue
-
-        for bullet in enemy_bullets:
-            bullet.update()
-
-        if player.reload > 0:
-            player.reload -= 1
-
-        if result == 'collide':
-            JUMP_COUNT = 0
 
         # изменяем ракурс камеры
         camera_target.update(player)
