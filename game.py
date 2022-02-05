@@ -11,11 +11,11 @@ class Player(pygame.sprite.Sprite):
 
     run_right = [pygame.image.load('sprites/player_run_rightshoot1.png'),
                  pygame.image.load('sprites/player_run_rightshoot2.png'),
-                 pygame.image.load('sprites/player_run_rightshoot3.png'),]
+                 pygame.image.load('sprites/player_run_rightshoot3.png')]
 
     run_left = [pygame.image.load('sprites/player_run_leftshoot1.png'),
-                 pygame.image.load('sprites/player_run_leftshoot2.png'),
-                 pygame.image.load('sprites/player_run_leftshoot3.png'), ]
+                pygame.image.load('sprites/player_run_leftshoot2.png'),
+                pygame.image.load('sprites/player_run_leftshoot3.png')]
 
     def __init__(self, x, y):
         super().__init__(all_sprites)
@@ -24,7 +24,7 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.side = 'right'
         self.reload = 0
-        self.health = 500
+        self.health = 999999
         self.rect.x = x
         self.rect.y = y
         self.speed = 5
@@ -105,7 +105,7 @@ class BulletEnemy(pygame.sprite.Sprite):
             return
 
         self.rect.x = self.rect.x + self.dir[0] * self.speed
-        self.rect.y = (self.rect.y + self.dir[1] * self.speed) + 1
+        self.rect.y = (self.rect.y + self.dir[1] * self.speed)
 
 
 class BulletPlayer(pygame.sprite.Sprite):
@@ -120,12 +120,16 @@ class BulletPlayer(pygame.sprite.Sprite):
         self.speed = 20
         self.rect.x = x + 25
         self.rect.y = y + 20
+        self.dir = (pygame.mouse.get_pos()[0] - self.rect.x, pygame.mouse.get_pos()[1] - self.rect.y)
+        length = hypot(*self.dir)
+        if length == 0.0:
+            self.dir = (0, -1)
+        else:
+            self.dir = (self.dir[0] / length, self.dir[1] / length)
 
     def update(self):
-        if self.side == 'left':
-            self.rect.x -= self.speed
-        elif self.side == 'right':
-            self.rect.x += self.speed
+        self.rect.x = self.rect.x + self.dir[0] * self.speed
+        self.rect.y = (self.rect.y + self.dir[1] * self.speed) + 1
         if self.rect.x >= 800 or self.rect.x <= 0:
             self.kill()
             return
@@ -138,8 +142,6 @@ class BulletPlayer(pygame.sprite.Sprite):
                     self.kill()
             except AttributeError:
                 pass
-            if pygame.sprite.collide_mask(self, obstacles[i]):
-                self.kill()
 
 
 class Tesla(pygame.sprite.Sprite):
@@ -250,18 +252,28 @@ class Camera:
 
 class CameraTarget(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/camera_target.png')
+    image_invisible = pygame.image.load('sprites/camera_target_invisible.png')
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, side):
         super().__init__(all_sprites)
         self.image = CameraTarget.image
         self.rect = self.image.get_rect()
+        self.image = CameraTarget.image_invisible
         self.rect.x = x
         self.rect.y = y
+        self.side = side
 
-    def update(self, target):
-        if target.rect.x >= self.rect.x <= self.rect.x + 10 <= 3200:
-            self.rect.x += 5
-            level.bg_x -= 1
+    def update(self, target, other):
+        if self.side == 'right':
+            if target.rect.x >= self.rect.x <= self.rect.x + 10 <= 3200:
+                self.rect.x += 5
+                other.rect.x += 5
+                level.bg_x -= 1
+        elif self.side == 'left':
+            if target.rect.x <= self.rect.x <= self.rect.x + 10:
+                self.rect.x -= 5
+                other.rect.x -= 5
+                level.bg_x += 1
 
 
 class EndLVL(pygame.sprite.Sprite):
@@ -279,16 +291,31 @@ class EndLVL(pygame.sprite.Sprite):
 
 
 if __name__ == '__main__':
+    def camera_move():
+        if command == 'right':
+            camera_target_right.update(player, camera_target_left)
+            camera.update(camera_target_right)
+        elif command == 'left':
+            camera_target_left.update(player, camera_target_right)
+            camera.update(camera_target_left)
+
+        if command == 'idle_left' or command == 'idle_right':
+            pass
+        else:
+            for sprite in all_sprites:
+                camera.apply(sprite)
+
+    def shoot():
+        if player.reload <= 0:
+            player_bullets.append(BulletPlayer(player.rect.x, player.rect.y, player.side))
+            player.reload = 15
+
     def main_movement():
         global JUMP_COUNT, ANIM_COUNT, command
-        if keys[pygame.K_SPACE]:
-            if player.reload <= 0:
-                player_bullets.append(BulletPlayer(player.rect.x, player.rect.y, player.side))
-                player.reload = 15
-        if keys[pygame.K_LEFT]:
+        if keys[pygame.K_a]:
             player.rect.x -= player.speed
             command = 'left'
-        elif keys[pygame.K_RIGHT]:
+        elif keys[pygame.K_d]:
             player.rect.x += player.speed
             command = 'right'
         else:
@@ -296,12 +323,10 @@ if __name__ == '__main__':
                 command = 'idle_right'
             elif command == 'left':
                 command = 'idle_left'
-        if keys[pygame.K_UP]:
+        if keys[pygame.K_SPACE] or keys[pygame.K_w]:
             if not JUMP_COUNT >= 250:
                 player.rect.y -= JUMP_HIGH
                 JUMP_COUNT += JUMP_HIGH
-            else:
-                return
         player.animation(command)
 
     all_sprites = pygame.sprite.Group()
@@ -313,7 +338,6 @@ if __name__ == '__main__':
     running = True
 
     level = Level()
-
 
     JUMP_COUNT = 0
     JUMP_HIGH = 14
@@ -336,24 +360,32 @@ if __name__ == '__main__':
 
     drones = [Drone(3000, 20)]
 
+    do_shoot = False
     player_bullets = []
 
     enemy_bullets = []
 
     jet = EndLVL()
 
-    camera_target = CameraTarget(400, 190)
+    camera_target_right = CameraTarget(200, 190, 'right')
+    camera_target_left = CameraTarget(200, 190, 'left')
 
     clock = pygame.time.Clock()
-    player = Player(200, 0)
+    player = Player(200, 200)
     while running:
         level.load_bg()
         clock.tick(60)
         for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                do_shoot = True
+            if event.type == pygame.MOUSEBUTTONUP:
+                do_shoot = False
             if event.type == pygame.QUIT:
                 running = False
 
         keys = pygame.key.get_pressed()
+        if do_shoot:
+            shoot()
         main_movement()
 
         result = player.update()
@@ -388,12 +420,7 @@ if __name__ == '__main__':
             except AttributeError:
                 continue
 
-        # изменяем ракурс камеры
-        camera_target.update(player)
-        camera.update(camera_target)
-        # обновляем положение всех спрайтов
-        for sprite in all_sprites:
-            camera.apply(sprite)
+        camera_move()
 
         all_sprites.draw(screen)
         pygame.display.flip()
