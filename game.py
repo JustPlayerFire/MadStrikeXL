@@ -5,6 +5,7 @@ from button import Button
 import sys
 
 
+# класс игрока
 class Player(pygame.sprite.Sprite):
     image = pygame.image.load("sprites/player_idle_right.png")
 
@@ -32,6 +33,7 @@ class Player(pygame.sprite.Sprite):
         self.rect.y = y
         self.speed = 5
 
+    # проверка на столкновения и события, связанные с завершением игры
     def update(self):
         global running, jet, mouse
         stand = False
@@ -54,6 +56,7 @@ class Player(pygame.sprite.Sprite):
         else:
             return 'collide'
 
+    # анимация игрока
     def animation(self):
         global ANIM_COUNT, command
         command = command
@@ -75,10 +78,12 @@ class Player(pygame.sprite.Sprite):
             player.image = player.idle_right
             self.side = 'right'
 
+    # нанесение урона игроку
     def hurt(self, dmg):
         self.health -= dmg
 
 
+# вражеская пуля
 class BulletEnemy(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/bullet_enemy.png')
     image2 = pygame.image.load('sprites/bullet_enemy_small.png')
@@ -96,6 +101,8 @@ class BulletEnemy(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y + 20
         self.reload = 0
+
+        # здесь вычисляется направление пули в сторону игрока
         self.dir = (player.rect.x - self.rect.x, player.rect.y - self.rect.y)
         length = hypot(*self.dir)
         if length == 0.0:
@@ -103,6 +110,7 @@ class BulletEnemy(pygame.sprite.Sprite):
         else:
             self.dir = (self.dir[0] / length, self.dir[1] / length)
 
+    # проверка на столкновения
     def update(self):
         if self.collide:
             if self.rect.x >= 800 or self.rect.x <= 0:
@@ -113,6 +121,7 @@ class BulletEnemy(pygame.sprite.Sprite):
                 self.kill()
                 return
 
+        # в случе столкновения с игроком, наносим ему урон
         if pygame.sprite.collide_mask(self, player):
             player.hurt(1)
             self.kill()
@@ -121,6 +130,7 @@ class BulletEnemy(pygame.sprite.Sprite):
         self.rect.y = (self.rect.y + self.dir[1] * self.speed)
 
 
+# пуля игрока
 class BulletPlayer(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/bullet.png')
 
@@ -133,6 +143,8 @@ class BulletPlayer(pygame.sprite.Sprite):
         self.speed = 20
         self.rect.x = x + 25
         self.rect.y = y + 20
+
+        # здесь вычисляется направление пули в сторону компьютерной мыши
         self.dir = (pygame.mouse.get_pos()[0] - self.rect.x, pygame.mouse.get_pos()[1] - self.rect.y)
         length = hypot(*self.dir)
         if length == 0.0:
@@ -140,14 +152,17 @@ class BulletPlayer(pygame.sprite.Sprite):
         else:
             self.dir = (self.dir[0] / length, self.dir[1] / length)
 
+    # проверка на столкновения
     def update(self):
         self.rect.x = self.rect.x + self.dir[0] * self.speed
         self.rect.y = (self.rect.y + self.dir[1] * self.speed) + 1
         if self.rect.x >= 800 or self.rect.x <= 0:
             self.kill()
             return
+
         for i in range(len(obstacles)):
             try:
+                # в случае попадания по Тесле, отнимаем жизнь у неё
                 if pygame.sprite.collide_mask(self, obstacles[i].tesla):
                     obstacles[i].tesla.health -= 1
                     obstacles[i].tesla.update()
@@ -156,6 +171,8 @@ class BulletPlayer(pygame.sprite.Sprite):
                     player.score += 1
             except AttributeError:
                 pass
+
+        # в случае попадания по мини-боссу (огромной стене в конце уровня), отнимаем жизнь у него
         if pygame.sprite.collide_mask(self, boss):
             boss.health -= 1
             player.score += 1
@@ -164,9 +181,11 @@ class BulletPlayer(pygame.sprite.Sprite):
             self.kill()
 
 
+# колючка
 class Spike(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/spike.png')
 
+    # можно создать много колючек, указав их кол-во в аргументе count
     def __init__(self, x, y, count=1):
         super().__init__(all_sprites)
         self.image = Spike.image
@@ -175,6 +194,7 @@ class Spike(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
+    # если они соприкасаются с игроком, то уничтожаются и наносят урон игроку
     def update(self):
         if pygame.sprite.collide_mask(self, player):
             player.hurt(10)
@@ -182,6 +202,7 @@ class Spike(pygame.sprite.Sprite):
             self.kill()
 
 
+# Тесла
 class Tesla(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/tesla_idle1.png')
 
@@ -189,14 +210,13 @@ class Tesla(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = Tesla.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.reload = 0
         self.health = 20
         self.rect.x = x + random.randrange(20, 50)
         self.rect.y = y - 70
 
+    # проверка здоровья, если ниже нуля, то Тесла уничтожается
     def update(self):
         if self.health <= 0:
             self.mask.clear()
@@ -205,6 +225,7 @@ class Tesla(pygame.sprite.Sprite):
             self.rect.y = -30
 
 
+# Стена Тесла (мини-босс)
 class BossTesla(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/Tesla_wall.png')
 
@@ -212,14 +233,13 @@ class BossTesla(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = BossTesla.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.reload = 0
         self.health = 300
         self.rect.x = 3500
         self.rect.y = 0
 
+    # проверка здоровья, если ниже нуля, то Стена Тесла уничтожается
     def update(self):
         if self.health <= 0:
             self.mask.clear()
@@ -228,6 +248,7 @@ class BossTesla(pygame.sprite.Sprite):
             self.rect.y = -50
 
 
+# Дрон
 class Drone(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/drone.png')
 
@@ -235,9 +256,7 @@ class Drone(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = Drone.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.reload = 0
         self.rect.x = x
         self.rect.y = y
@@ -245,6 +264,7 @@ class Drone(pygame.sprite.Sprite):
         self.count_move = 1500
         self.speed = 5
 
+    # алгоритм движения дрона
     def move(self):
         if self.count_move <= 0:
             if self.side == 'left':
@@ -260,6 +280,7 @@ class Drone(pygame.sprite.Sprite):
         self.count_move -= 2
 
 
+# Летающие земли
 class Obstacle(pygame.sprite.Sprite):
     image = pygame.image.load('level_decor/fly_ground.png')
 
@@ -267,15 +288,15 @@ class Obstacle(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = Obstacle.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.rect.x = x
         self.rect.y = y
+        # можно поставить Теслу
         if spawn_tesla == 'True':
             self.tesla = Tesla(self.rect.x, self.rect.y)
 
 
+# Земля и фон
 class Level(pygame.sprite.Sprite):
     image = pygame.image.load('level_decor/ground.png')
     bg = pygame.image.load('level_decor/bg.png')
@@ -284,16 +305,16 @@ class Level(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = Level.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.rect.bottom = height
         self.bg_x = -100
 
+    # загружаем фон
     def load_bg(self):
         screen.blit(Level.bg, (self.bg_x, 0))
 
 
+# камера
 class Camera:
     # зададим начальный сдвиг камеры
     def __init__(self):
@@ -311,6 +332,7 @@ class Camera:
         self.dy = -(target.rect.y + target.rect.h // 2 - height // 2)
 
 
+# преграды слева и справа от поверхности (чтобы игрок не входил в землю, заходя в неё слева или справа)
 class Border(pygame.sprite.Sprite):
     image = pygame.image.load('level_decor/ground_borders.png')
 
@@ -318,15 +340,13 @@ class Border(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = Border.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
-        # self.mask = pygame.mask.from_surface(self.image)
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.rect.x = x
         self.rect.y = y
         self.image = pygame.Surface(self.rect.size, pygame.SRCALPHA, 32).convert_alpha()
 
 
+# особые "цели" для камери, благодаря им камера движется только по оси X и создаётся ощущение, что она следит за игроком
 class CameraTarget(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/camera_target.png')
     image_invisible = pygame.image.load('sprites/camera_target_invisible.png')
@@ -353,6 +373,7 @@ class CameraTarget(pygame.sprite.Sprite):
                 level.bg_x += 1
 
 
+# курсор мыши в виде прицела
 class Mouse(pygame.sprite.Sprite):
     image = pygame.image.load('sprites/mouse.png')
 
@@ -371,6 +392,7 @@ class Mouse(pygame.sprite.Sprite):
         pygame.mouse.set_visible(True)
 
 
+# конец уровня (истребитель в конце)
 class EndLVL(pygame.sprite.Sprite):
     image = pygame.image.load('level_decor/jet.png')
 
@@ -378,13 +400,12 @@ class EndLVL(pygame.sprite.Sprite):
         super().__init__(all_sprites)
         self.image = EndLVL.image
         self.rect = self.image.get_rect()
-        # вычисляем маску для эффективного сравнения
         self.mask = pygame.mask.from_surface(self.image)
-        # располагаем горы внизу
         self.rect.bottom = height
         self.rect.x = x
 
 
+# загрузчик уровня
 class LevelLoader:
     def __init__(self):
         self.current_lvl = 1
@@ -428,23 +449,23 @@ class LevelLoader:
         lvl_process = False
 
 
+# функция размещения текста по экрану
 def place_text(text, x, y, font_size=36):
     font = pygame.font.Font(None, font_size)
     text = font.render(str(text), False, (0, 0, 0))
     screen.blit(text, (x, y))
 
 
+# главное меню
 def main_menu():
+    bg = pygame.image.load('sprites/bg_menu.png')
+    title = pygame.image.load('sprites/title.png')
+    menu_rect = title.get_rect(center=(400, 50))
+
+    start_button = Button(image=pygame.image.load("sprites/button_start.png"), pos=(400, 200))
     menu_running = True
     while menu_running:
         mouse_pos = pygame.mouse.get_pos()
-
-        bg = pygame.image.load('sprites/bg_menu.png')
-        title = pygame.image.load('sprites/title.png')
-        menu_rect = title.get_rect(center=(400, 50))
-
-        start_button = Button(image=pygame.image.load("sprites/button_start.png"), pos=(400, 200))
-
         screen.blit(bg, (0, 0))
         screen.blit(title, menu_rect)
 
@@ -461,6 +482,7 @@ def main_menu():
         pygame.display.update()
 
 
+# экран завершения (либо проигрыш, либо выигрыш)
 def over_screen(stype):
     bg = pygame.image.load('sprites/bg_menu.png')
     if stype == 'complete':
@@ -502,6 +524,7 @@ if __name__ == '__main__':
 
     main_menu()
 
+    # функция перемещения камеры
     def camera_move():
         global command
         if command == 'right':
@@ -517,13 +540,13 @@ if __name__ == '__main__':
             for sprite in all_sprites:
                 camera.apply(sprite)
 
-
+    # функция выстрела игрока
     def shoot():
         if player.reload <= 0:
             player_bullets.append(BulletPlayer(player.rect.x, player.rect.y, player.side))
             player.reload = 15
 
-
+    # функция перемещения и прыжка игрока, а также некоторая проверка на столкновения.
     def main_movement():
         global JUMP_COUNT, ANIM_COUNT, command
         if keys[pygame.K_a]:
@@ -618,18 +641,21 @@ if __name__ == '__main__':
 
         result = player.update()
 
+        # проверка перезарядки игрока
         if player.reload > 0:
             player.reload -= 1
 
         if result == 'collide':
             JUMP_COUNT = 0
 
+        # проверка пуль
         for bullet in player_bullets:
             bullet.update()
 
         for bullet in enemy_bullets:
             bullet.update()
 
+        # проверка перезарядки станций Дрона
         for i in range(len(drones)):
             drones[i].move()
             if drones[i].reload <= 0:
@@ -638,9 +664,11 @@ if __name__ == '__main__':
             if drones[i].reload > 0:
                 drones[i].reload -= 1
 
+        # проверка колючек
         for spike in spikes:
             spike.update()
 
+        # проверка перезарядки станций Тесла
         for i in range(len(obstacles)):
             try:
                 if obstacles[i].tesla.reload > 0:
@@ -651,6 +679,7 @@ if __name__ == '__main__':
             except AttributeError:
                 continue
 
+        # проверка перезарядки минибосса
         if boss.reload <= 0:
             enemy_bullets.append(BulletEnemy(boss.rect.x + 10, boss.rect.y + 120, 'big', False))
             enemy_bullets.append(BulletEnemy(boss.rect.x + 10, boss.rect.y + 180, 'big', False))
